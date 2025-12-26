@@ -1,0 +1,30 @@
+# ===== Data =====
+DATA/
+X_train/
+X_test/
+X_train_*/
+X_test_*/
+*.csv
+
+# ===== Jupyter =====
+.ipynb_checkpoints/
+
+
+# ===== Python =====
+__pycache__/
+*.pyc
+
+# ===== Environnements =====
+.venv/
+.env/
+
+*.pdf
+notebooks/
+
+
+# ===== VS Code =====
+*.code-workspace
+.vscode/
+
+# ===== Python version =====
+.python-version
