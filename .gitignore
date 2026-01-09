@@ -28,3 +28,7 @@ notebooks/
 
 # ===== Python version =====
 .python-version
+
+artifacts/
+*.txt
+*.md
