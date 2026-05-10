@@ -1,5 +1,6 @@
 # ===== Data =====
 DATA/
+data/
 X_train/
 X_test/
 X_train_*/
@@ -9,7 +10,6 @@ X_test_*/
 # ===== Jupyter =====
 .ipynb_checkpoints/
 
-
 # ===== Python =====
 __pycache__/
 *.pyc
@@ -17,18 +17,33 @@ __pycache__/
 # ===== Environnements =====
 .venv/
 .env/
-
-*.pdf
-notebooks/
-
+.python-version
 
 # ===== VS Code =====
 *.code-workspace
 .vscode/
 
-# ===== Python version =====
-.python-version
-
+# ===== Artifacts & results =====
 artifacts/
-*.txt
-*.md
+results/*.joblib
+results/*.pkl
+models/
+
+# ===== Unnecessary files from the QRT project =====
+qrt_project.ipynb
+qrt_project.pdf
+plan.pdf
+Rapport.txt
+*.pptx
+submission_*.csv
+random_submission_*.csv
+Presentation*
+notebooks/Benchmark_nqBJ7fO.ipynb
+notebooks/Essaie.ipynb
+notebooks/projet_ML.ipynb
+notebooks/Challenge_QRT_Survie_LMA_Template.ipynb
+notebooks/Projet.ipynb
+EOF
+
+# Readme
+Readme.md
