@@ -35,7 +35,6 @@ qrt_project.pdf
 plan.pdf
 Rapport.txt
 *.pptx
-submission_*.csv
 random_submission_*.csv
 Presentation*
 notebooks/Benchmark_nqBJ7fO.ipynb
@@ -43,7 +42,8 @@ notebooks/Essaie.ipynb
 notebooks/projet_ML.ipynb
 notebooks/Challenge_QRT_Survie_LMA_Template.ipynb
 notebooks/Projet.ipynb
-EOF
+notebooks/survival_analysis2.ipynb
+
 
 # Readme
 Readme.md

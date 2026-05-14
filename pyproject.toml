@@ -1,25 +1,31 @@
-[project]
-name = "qrt-projects"
+[tool.poetry]
+name = "leukemia-survival-prediction"
 version = "0.1.0"
-description = ""
-authors = [
-    {name = "Machoudi"}
-]
+description = "Survival prediction for Acute Myeloid Leukemia -- QRT Data Challenge 2025"
+authors = ["Machoudi ADEGOUNTE <mabioladegounte@gmail.com>"]
 readme = "README.md"
-requires-python = ">=3.12"
-dependencies = [
-    "numpy (>=2.3.4,<3.0.0)",
-    "scipy (>=1.16.2,<2.0.0)",
-    "pandas (>=2.3.3,<3.0.0)",
-    "matplotlib (>=3.10.7,<4.0.0)",
-    "seaborn (>=0.13.2,<0.14.0)",
-    "scikit-learn (>=1.7.2,<2.0.0)",
-    "scikit-survival (>=0.25.0,<0.26.0)",
-    "lifelines (>=0.30.0,<0.31.0)",
-    "statsmodels (>=0.14.5,<0.15.0)",
-    "missingno (>=0.5.2,<0.6.0)"
-]
+license = "MIT"
 
+[tool.poetry.dependencies]
+python = ">=3.11,<3.13"
+pandas = ">=2.1,<3.0"
+numpy = "^2.4.4"
+scipy = "^1.17.1"
+matplotlib = "^3.10.9"
+seaborn = "^0.13.2"
+scikit-learn = "^1.8.0"
+scikit-survival = "^0.27.0"
+lifelines = "^0.30.3"
+statsmodels = "^0.14.6"
+missingno = "^0.5.2"
+joblib = "^1.5.3"
+shap = "^0.51.0"
+streamlit = "^1.57.0"
+
+[tool.poetry.group.dev.dependencies]
+jupyter = "*"
+ipykernel = "*"
+nbformat = "*"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
