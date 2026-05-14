@@ -20,10 +20,10 @@ from sklearn.impute import SimpleImputer
 
 from src.features import CONTINUOUS_VARS, TARGET_TIME, TARGET_EVENT
 
-
 # ---------------------------------------------------------------------------
 # Outlier detection
 # ---------------------------------------------------------------------------
+
 
 def iqr_outlier_bounds(
     series: pd.Series,
@@ -101,19 +101,22 @@ def summarize_outliers(
     rows = []
     for feat in features:
         outliers, bounds = detect_iqr_outliers(df, feat, factor)
-        rows.append({
-            "feature": feat,
-            "n_outliers": len(outliers),
-            "pct_outliers": round(100 * len(outliers) / len(df), 2),
-            "lower_bound": round(bounds["lower"], 3),
-            "upper_bound": round(bounds["upper"], 3),
-        })
+        rows.append(
+            {
+                "feature": feat,
+                "n_outliers": len(outliers),
+                "pct_outliers": round(100 * len(outliers) / len(df), 2),
+                "lower_bound": round(bounds["lower"], 3),
+                "upper_bound": round(bounds["upper"], 3),
+            }
+        )
     return pd.DataFrame(rows)
 
 
 # ---------------------------------------------------------------------------
 # Missing value analysis
 # ---------------------------------------------------------------------------
+
 
 def missing_summary(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -132,6 +135,7 @@ def missing_summary(df: pd.DataFrame) -> pd.DataFrame:
 # Preprocessing pipeline (leak-free)
 # ---------------------------------------------------------------------------
 
+
 def build_preprocessing_pipeline() -> Pipeline:
     """
     Build a sklearn Pipeline for continuous hematological features.
@@ -146,10 +150,12 @@ def build_preprocessing_pipeline() -> Pipeline:
     -------
     sklearn.pipeline.Pipeline
     """
-    return Pipeline([
-        ("imputer", SimpleImputer(strategy="median")),
-        ("scaler",  StandardScaler()),
-    ])
+    return Pipeline(
+        [
+            ("imputer", SimpleImputer(strategy="median")),
+            ("scaler", StandardScaler()),
+        ]
+    )
 
 
 def prepare_survival_data(
@@ -194,3 +200,31 @@ def prepare_survival_data(
     y = Surv.from_dataframe(TARGET_EVENT, TARGET_TIME, df_clean)
 
     return X, y, pipeline
+
+
+# Normalisation
+def log1p_cols(X):
+    """Log1p transformation for skewed clinical variables."""
+    X = X.copy()
+    for c in ["WBC", "ANC", "MONOCYTES", "PLT"]:
+        if c in X.columns:
+            X[c] = np.log1p(X[c])
+    return X
+
+
+def log1p_full(X):
+    """Log1p transformation for skewed clinical + molecular variables."""
+    X = X.copy()
+    for c in [
+        "WBC",
+        "ANC",
+        "MONOCYTES",
+        "PLT",
+        "N_MUT",
+        "N_GENES",
+        "DEPTH_MAX",
+        "DEPTH_MEAN",
+    ]:
+        if c in X.columns:
+            X[c] = np.log1p(X[c])
+    return X
