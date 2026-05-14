@@ -19,10 +19,8 @@ from typing import Dict, List, Optional, Tuple
 from lifelines import KaplanMeierFitter
 from lifelines.statistics import multivariate_logrank_test
 
-
-# ---------------------------------------------------------------------------
 # Concordance index
-# ---------------------------------------------------------------------------
+
 
 def concordance_index_ci(
     model,
@@ -34,7 +32,7 @@ def concordance_index_ci(
     """
     Compute concordance index with 95% bootstrap confidence interval.
 
-    Parameters
+    Args:
     ----------
     model : fitted sksurv estimator (CoxPH or RSF)
     X : np.ndarray
@@ -54,7 +52,7 @@ def concordance_index_ci(
     # Point estimate
     risk_scores = model.predict(X)
     events = y[y.dtype.names[0]]
-    times  = y[y.dtype.names[1]]
+    times = y[y.dtype.names[1]]
     c_index, _, _, _, _ = concordance_index_censored(events, times, risk_scores)
 
     # Bootstrap CI
@@ -71,7 +69,7 @@ def concordance_index_ci(
 
     boot_scores = np.array(boot_scores)
     return {
-        "c_index":  round(c_index, 4),
+        "c_index": round(c_index, 4),
         "ci_lower": round(float(np.percentile(boot_scores, 2.5)), 4),
         "ci_upper": round(float(np.percentile(boot_scores, 97.5)), 4),
     }
@@ -81,7 +79,7 @@ def model_comparison_table(results: Dict[str, Dict]) -> pd.DataFrame:
     """
     Build a formatted comparison table from concordance_index_ci outputs.
 
-    Parameters
+    Args:
     ----------
     results : dict  {model_name: {"c_index": ..., "ci_lower": ..., "ci_upper": ...}}
 
@@ -91,21 +89,28 @@ def model_comparison_table(results: Dict[str, Dict]) -> pd.DataFrame:
     """
     rows = []
     for name, metrics in results.items():
-        rows.append({
-            "Model": name,
-            "Discrimination score": metrics["c_index"],
-            "95% CI": f"[{metrics['ci_lower']} – {metrics['ci_upper']}]",
-        })
+        rows.append(
+            {
+                "Model": name,
+                "Discrimination score": metrics["c_index"],
+                "95% CI": f"[{metrics['ci_lower']} – {metrics['ci_upper']}]",
+            }
+        )
     return pd.DataFrame(rows).sort_values("Discrimination score", ascending=False)
 
 
-# ---------------------------------------------------------------------------
 # Kaplan-Meier plots
-# ---------------------------------------------------------------------------
+
 
 _PALETTE = [
-    "#2563eb", "#dc2626", "#16a34a", "#d97706",
-    "#7c3aed", "#0891b2", "#be185d", "#65a30d",
+    "#2563eb",
+    "#dc2626",
+    "#16a34a",
+    "#d97706",
+    "#7c3aed",
+    "#0891b2",
+    "#be185d",
+    "#65a30d",
 ]
 
 
@@ -122,7 +127,7 @@ def plot_kaplan_meier(
     """
     Plot stratified Kaplan-Meier curves with log-rank p-value.
 
-    Parameters
+    Args:
     ----------
     df : pd.DataFrame
     group_col : str — stratification variable
@@ -185,9 +190,8 @@ def plot_kaplan_meier(
     return ax
 
 
-# ---------------------------------------------------------------------------
 # Feature importance (RSF)
-# ---------------------------------------------------------------------------
+
 
 def plot_feature_importance(
     model,
@@ -200,7 +204,7 @@ def plot_feature_importance(
     """
     Horizontal bar chart of RSF permutation feature importances.
 
-    Parameters
+    Args:
     ----------
     model : fitted RandomSurvivalForest
     feature_names : list of str
@@ -216,7 +220,7 @@ def plot_feature_importance(
     importances = model.feature_importances_
     idx = np.argsort(importances)[-top_n:]
     names = [feature_names[i] for i in idx]
-    vals  = importances[idx]
+    vals = importances[idx]
 
     if ax is None:
         fig, ax = plt.subplots(figsize=(7, max(3, top_n * 0.4)))
@@ -234,9 +238,8 @@ def plot_feature_importance(
     return ax
 
 
-# ---------------------------------------------------------------------------
 # Predicted survival curve for a single patient (used by Streamlit app)
-# ---------------------------------------------------------------------------
+
 
 def predict_survival_curve(
     model,
@@ -248,7 +251,7 @@ def predict_survival_curve(
     """
     Plot the predicted survival function for a single patient.
 
-    Parameters
+    Args:
     ----------
     model : fitted RSF or CoxPH (sksurv)
     X_patient : np.ndarray, shape (1, n_features)

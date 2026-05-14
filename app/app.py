@@ -24,9 +24,8 @@ st.set_page_config(
     layout="wide",
 )
 
-# ---------------------------------------------------------------------------
+
 # Constants
-# ---------------------------------------------------------------------------
 
 CYTO_CLASSES = [
     "APL t(15;17)",
@@ -91,9 +90,9 @@ IMPORTANCE_DIRECTION = {
 }
 
 
-# ---------------------------------------------------------------------------
 # Load model
-# ---------------------------------------------------------------------------
+
+
 @st.cache_resource
 def load_model():
     return joblib.load(CLINICAL_RSF)
@@ -106,9 +105,9 @@ except FileNotFoundError as e:
     model_loaded = False
     load_error = str(e)
 
-# ---------------------------------------------------------------------------
+
 # Welcome message
-# ---------------------------------------------------------------------------
+
 st.title("🩺 Leukemia Survival Predictor")
 
 st.markdown(
@@ -148,9 +147,9 @@ if not model_loaded:
     )
     st.stop()
 
-# ---------------------------------------------------------------------------
+
 # Sidebar — compact layout
-# ---------------------------------------------------------------------------
+
 st.sidebar.header("🩺 Patient clinical profile")
 
 # Cytogenetics
@@ -213,9 +212,9 @@ predict_btn = st.sidebar.button(
     "🔮 Predict survival", type="primary", use_container_width=True
 )
 
-# ---------------------------------------------------------------------------
+
 # Risk badge
-# ---------------------------------------------------------------------------
+
 favorable = ["APL t(15;17)", "inv(16)", "t(8;21)", "Normal"]
 adverse = ["Monosomy 7", "Complex"]
 if cyto_class in favorable:
@@ -228,9 +227,9 @@ else:
     risk_badge = "🟡 Intermediate"
     risk_color = "#d97706"
 
-# ---------------------------------------------------------------------------
+
 # Patient summary + Model info
-# ---------------------------------------------------------------------------
+
 col1, col2 = st.columns([1.5, 1], gap="large")
 
 with col1:
@@ -278,9 +277,9 @@ with col2:
         "(0.5 = random ranking, 1.0 = perfect ranking)."
     )
 
-# ---------------------------------------------------------------------------
+
 # Prediction
-# ---------------------------------------------------------------------------
+
 if predict_btn:
     X_df = pd.DataFrame(
         [

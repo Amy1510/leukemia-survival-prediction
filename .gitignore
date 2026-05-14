@@ -1,10 +1,8 @@
 # ===== Data =====
 DATA/
-data/
-X_train/
-X_test/
-X_train_*/
-X_test_*/
+data/*.csv 
+data/X_train/
+data/X_test/
 *.csv
 
 # ===== Jupyter =====
@@ -24,26 +22,16 @@ __pycache__/
 .vscode/
 
 # ===== Artifacts & results =====
-artifacts/
-results/*.joblib
 results/*.pkl
+results/*.csv
 models/
 
 # ===== Unnecessary files from the QRT project =====
 qrt_project.ipynb
 qrt_project.pdf
 plan.pdf
-Rapport.txt
 *.pptx
-random_submission_*.csv
 Presentation*
 notebooks/Benchmark_nqBJ7fO.ipynb
-notebooks/Essaie.ipynb
-notebooks/projet_ML.ipynb
-notebooks/Challenge_QRT_Survie_LMA_Template.ipynb
-notebooks/Projet.ipynb
 notebooks/survival_analysis2.ipynb
 
-
-# Readme
-Readme.md

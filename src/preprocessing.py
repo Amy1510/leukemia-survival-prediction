@@ -32,7 +32,7 @@ def iqr_outlier_bounds(
     """
     Compute IQR-based outlier bounds for a numeric series.
 
-    Parameters
+    Args:
     ----------
     series : pd.Series
     factor : float
@@ -62,7 +62,7 @@ def detect_iqr_outliers(
     """
     Detect univariate outliers using the IQR method.
 
-    Parameters
+    Args:
     ----------
     df : pd.DataFrame
     feature : str
@@ -86,7 +86,7 @@ def summarize_outliers(
     """
     Return a summary table of IQR outliers for multiple features.
 
-    Parameters
+    Args:
     ----------
     df : pd.DataFrame
     features : list of str (defaults to CONTINUOUS_VARS)
@@ -167,7 +167,7 @@ def prepare_survival_data(
     """
     Prepare (X, y) for scikit-survival models.
 
-    Parameters
+    Args:
     ----------
     df : pd.DataFrame
         Must contain feature_cols, TARGET_TIME, TARGET_EVENT.

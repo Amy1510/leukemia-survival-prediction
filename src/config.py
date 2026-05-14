@@ -10,14 +10,14 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = Path(os.environ.get("DATA_DIR", PROJECT_ROOT / "data"))
 
-# ── Input files ───────────────────────────────────────────────────────────
+# Input files
 CLINICAL_TRAIN = DATA_DIR / "X_train" / "clinical_train.csv"
 MOLECULAR_TRAIN = DATA_DIR / "X_train" / "molecular_train.csv"
 TARGET_TRAIN = DATA_DIR / "target_train.csv"
 CLINICAL_TEST = DATA_DIR / "X_test" / "clinical_test.csv"
 MOLECULAR_TEST = DATA_DIR / "X_test" / "molecular_test.csv"
 
-# ── Models ────────────────────────────────────────────────────────────────
+# Models
 MODELS_DIR = PROJECT_ROOT / "models"
 
 CLINICAL_MODEL_DIR = MODELS_DIR / "clinical"
@@ -30,11 +30,11 @@ FULL_PIPELINE = FULL_MODEL_DIR / "preprocessing_pipeline.joblib"
 FULL_SELECTED_FEATURES = FULL_MODEL_DIR / "selected_features.joblib"
 FULL_MOLECULAR_FEATURES = FULL_MODEL_DIR / "molecular_features.joblib"
 
-# ── Results ───────────────────────────────────────────────────────────────
+# Results
 RESULTS_DIR = PROJECT_ROOT / "results"
 FIGURES_DIR = RESULTS_DIR / "figures"
 
-# ── Create dirs if needed ─────────────────────────────────────────────────
+# Create dirs if needed
 for d in [CLINICAL_MODEL_DIR, FULL_MODEL_DIR, FIGURES_DIR]:
     d.mkdir(parents=True, exist_ok=True)
 

@@ -12,7 +12,6 @@ import pandas as pd
 import numpy as np
 from typing import Optional
 
-
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
@@ -32,13 +31,14 @@ CYTO_CLASS_ORDER = [
     "Other",
     "Missing",
     "Monosomy 7",
-    "Complex",          # worst prognosis
+    "Complex",  # worst prognosis
 ]
 
 
 # ---------------------------------------------------------------------------
 # Cytogenetic classification
 # ---------------------------------------------------------------------------
+
 
 def cytogenetic_group(karyotype: Optional[str]) -> str:
     """
@@ -50,7 +50,7 @@ def cytogenetic_group(karyotype: Optional[str]) -> str:
     - Adverse: Monosomy 7, Complex (≥3 abnormalities)
     - Missing: no karyotype available
 
-    Parameters
+    Args:
     ----------
     karyotype : str or None
         Raw ISCN string from the CYTOGENETICS column.
@@ -100,7 +100,7 @@ def add_cyto_class(df: pd.DataFrame) -> pd.DataFrame:
     """
     Add a CYTO_CLASS column derived from CYTOGENETICS.
 
-    Parameters
+    Args:
     ----------
     df : pd.DataFrame
         DataFrame containing a CYTOGENETICS column.
@@ -119,11 +119,12 @@ def add_cyto_class(df: pd.DataFrame) -> pd.DataFrame:
 # Encoding
 # ---------------------------------------------------------------------------
 
+
 def encode_cyto_class(df: pd.DataFrame) -> pd.DataFrame:
     """
     Ordinal-encode CYTO_CLASS according to clinical prognosis order.
 
-    Parameters
+    Args:
     ----------
     df : pd.DataFrame
         DataFrame with a CYTO_CLASS column.
@@ -149,7 +150,7 @@ def build_feature_matrix(
     Selects continuous hematological variables and, optionally, the
     ordinal-encoded cytogenetic class.
 
-    Parameters
+    Args:
     ----------
     df : pd.DataFrame
         Preprocessed DataFrame (outliers handled, CYTO_CLASS present).
