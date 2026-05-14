@@ -188,4 +188,11 @@ K=30 was selected via cross-validation (K=10, 20, 30 yielded similar CV scores ~
 QRT Data Challenge 2025 — [challengedata.ens.fr](https://challengedata.ens.fr/)
 
 The dataset is not redistributable. See [`data/README.md`](data/README.md) for access instructions.
+---
 
+## License
+
+This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
+
+The dataset is **not** covered by this license and remains subject to the QRT Data Challenge
+terms of use. See [`data/README.md`](data/README.md) for access instructions.
