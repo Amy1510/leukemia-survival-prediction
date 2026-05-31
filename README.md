@@ -79,10 +79,16 @@ cd leukemia-survival-prediction
 
 ### 2. Install dependencies
 
+**Linux / macOS (pyenv + Poetry)**
 ```bash
+pyenv local 3.11
 poetry install
 ```
 
+**Windows (Poetry only)**
+```powershell
+poetry install
+```
 ### 3. Add the data
 
 The QRT 2025 dataset is not included in this repository.
@@ -103,11 +109,13 @@ data/
 
 ### 4. Run the notebook
 
+> **Note:** The trained models (~3 GB) are not included in this repository.
+> See [`models/README.md`](models/README.md) to obtain them or retrain from scratch.
+
 ```bash
 poetry run jupyter notebook notebooks/survival_analysis.ipynb
 ```
 
-Run all cells. This trains both models and saves them to `models/`.
 
 ### 5. Launch the Streamlit app
 
@@ -176,7 +184,7 @@ K=30 was selected via cross-validation (K=10, 20, 30 yielded similar CV scores ~
 
 | Name | Role |
 |---|---|
-| **Machoudi ADEGOUNTE** |  Full pipeline,statistical tests, modelling, Streamlit app |
+| **Machoudi ADEGOUNTE** | Full pipeline, statistical tests, modelling, Streamlit app |
 | **KANE Amy** | EDA, preprocessing |
 | **KONDET Idrissa** | Molecular feature engineering, model evaluation |
 | **MILHANE Issmaila** | Data exploration, results analysis |
@@ -190,6 +198,14 @@ QRT Data Challenge 2025 — [challengedata.ens.fr](https://challengedata.ens.fr/
 The dataset is not redistributable. See [`data/README.md`](data/README.md) for access instructions.
 ---
 
+
+## Extensions in progress
+
+| Feature | Owner | Branch |
+|---|---|---|
+| SHAP explainability | KANE Amy| `feature/explainability` |
+| Bias detection by center / cytogenetic group | KANE Amy | `feature/explainability` |
+---
 ## License
 
 This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.

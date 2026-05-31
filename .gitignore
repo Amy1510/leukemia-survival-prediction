@@ -24,7 +24,8 @@ __pycache__/
 # ===== Artifacts & results =====
 results/*.pkl
 results/*.csv
-models/
+models/**/*.joblib
+models/**/*.pkl
 
 # ===== Unnecessary files from the QRT project =====
 qrt_project.ipynb
