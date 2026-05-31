@@ -51,7 +51,7 @@ leukemia-survival-prediction/
 ├── data/
 │   └── README.md               # Data access instructions (data not included)
 ├── notebooks/
-│   └── survival_analysis.ipynb # Full pipeline: EDA → preprocessing → modelling → evaluation
+│   └── survival_analysis.ipynb # Full pipeline: EDA → preprocessing → modelling → evaluation — [view on Colab](https://colab.research.google.com/github/Machoudi-1/leukemia-survival-prediction/blob/main/notebooks/survival_analysis.ipynb)
 ├── src/
 │   ├── config.py               # Centralised path configuration
 │   ├── features.py             # Cytogenetic classification (ELN 2022), feature engineering
