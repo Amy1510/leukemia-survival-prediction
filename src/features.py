@@ -12,9 +12,8 @@ import pandas as pd
 import numpy as np
 from typing import Optional
 
-# ---------------------------------------------------------------------------
 # Constants
-# ---------------------------------------------------------------------------
+
 
 CONTINUOUS_VARS = ["BM_BLAST", "WBC", "ANC", "MONOCYTES", "HB", "PLT"]
 CATEGORICAL_VARS = ["CENTER", "CYTOGENETICS", "CYTO_CLASS"]
@@ -35,9 +34,7 @@ CYTO_CLASS_ORDER = [
 ]
 
 
-# ---------------------------------------------------------------------------
 # Cytogenetic classification
-# ---------------------------------------------------------------------------
 
 
 def cytogenetic_group(karyotype: Optional[str]) -> str:
@@ -115,9 +112,7 @@ def add_cyto_class(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-# ---------------------------------------------------------------------------
 # Encoding
-# ---------------------------------------------------------------------------
 
 
 def encode_cyto_class(df: pd.DataFrame) -> pd.DataFrame:

@@ -20,9 +20,7 @@ from sklearn.impute import SimpleImputer
 
 from src.features import CONTINUOUS_VARS, TARGET_TIME, TARGET_EVENT
 
-# ---------------------------------------------------------------------------
 # Outlier detection
-# ---------------------------------------------------------------------------
 
 
 def iqr_outlier_bounds(
@@ -113,9 +111,7 @@ def summarize_outliers(
     return pd.DataFrame(rows)
 
 
-# ---------------------------------------------------------------------------
 # Missing value analysis
-# ---------------------------------------------------------------------------
 
 
 def missing_summary(df: pd.DataFrame) -> pd.DataFrame:
@@ -131,9 +127,7 @@ def missing_summary(df: pd.DataFrame) -> pd.DataFrame:
     )
 
 
-# ---------------------------------------------------------------------------
 # Preprocessing pipeline (leak-free)
-# ---------------------------------------------------------------------------
 
 
 def build_preprocessing_pipeline() -> Pipeline:

@@ -10,12 +10,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
 import streamlit as st
 import joblib
 
-from src.features import CYTO_CLASS_ORDER
-from src.config import CLINICAL_RSF
+from src.config import CLINICAL_RSF, FULL_RSF
+
+
 from src.preprocessing import log1p_cols, log1p_full
 
 st.set_page_config(
@@ -25,7 +25,7 @@ st.set_page_config(
 )
 
 
-# Constants
+# Constants — clinical
 
 CYTO_CLASSES = [
     "APL t(15;17)",
@@ -69,41 +69,173 @@ FEATURE_LABELS = {
     "PLT": "Platelets",
 }
 
-# Clinical feature importance from univariate Cox analysis (T2)
-# HR values converted to risk contribution (HR-1 for risk factors, 1-HR for protective)
-CLINICAL_IMPORTANCE = {
-    "Bone marrow blasts": 0.352,  # HR=1.352
-    "White blood cells": 0.152,  # HR=1.152
-    "Monocytes": 0.116,  # HR=1.116
-    "Neutrophils (ANC)": 0.114,  # HR=1.114
-    "Platelets": 0.275,  # HR=0.725 → protective
-    "Haemoglobin": 0.296,  # HR=0.704 → protective
+CENTER_VALUE = "KI"  # placeholder center, consistent with training data encoding
+
+
+# Constants — molecular
+
+MOLECULAR_GENE_COLS = [
+    "TET2",
+    "ASXL1",
+    "SF3B1",
+    "DNMT3A",
+    "RUNX1",
+    "SRSF2",
+    "TP53",
+    "STAG2",
+    "U2AF1",
+    "EZH2",
+    "CBL",
+    "BCOR",
+    "NRAS",
+    "ZRSR2",
+    "DDX41",
+    "IDH2",
+    "CUX1",
+    "NF1",
+    "PHF6",
+    "KRAS",
+    "SETBP1",
+    "JAK2",
+    "MLL",
+    "PTPN11",
+    "CEBPA",
+    "IDH1",
+    "ETV6",
+    "ETNK1",
+    "MPL",
+    "SH2B3",
+]
+
+MOLECULAR_EFFECT_COLS = [
+    "2KB_upstream_variant",
+    "ITD",
+    "OTHER_EFFECT",
+    "PTD",
+    "frameshift_variant",
+    "inframe_codon_gain",
+    "inframe_codon_loss",
+    "initiator_codon_change",
+    "non_synonymous_codon",
+    "splice_site_variant",
+    "stop_gained",
+]
+
+# Illustrative synthetic profiles, NOT real patient data.
+# Built to demonstrate how molecular markers shift the survival prediction.
+MOLECULAR_PROFILES = {
+    "none": {
+        "label": "No molecular data available",
+        "description": "Patient without molecular testing performed at diagnosis. "
+        "The model relies on clinical and cytogenetic data only.",
+        "genes": [],
+        "effects": [],
+        "n_mut": 0,
+        "n_genes": 0,
+        "vaf_mean": 0.0,
+        "vaf_max": 0.0,
+        "depth_mean": 0.0,
+        "depth_max": 0.0,
+        "has_mol_data": 0,
+    },
+    "favorable": {
+        "label": "Favourable marker — CEBPA mutation",
+        "description": "Single CEBPA mutation — a marker associated with favourable "
+        "prognosis in AML under ELN 2022 guidelines.",
+        "genes": ["CEBPA"],
+        "effects": ["frameshift_variant"],
+        "n_mut": 1,
+        "n_genes": 1,
+        "vaf_mean": 0.42,
+        "vaf_max": 0.42,
+        "depth_mean": 280.0,
+        "depth_max": 280.0,
+        "has_mol_data": 1,
+    },
+    "adverse": {
+        "label": "Adverse marker — TP53 mutation",
+        "description": "TP53 mutation — one of the most well-documented adverse "
+        "prognostic markers in AML.",
+        "genes": ["TP53"],
+        "effects": ["non_synonymous_codon"],
+        "n_mut": 2,
+        "n_genes": 1,
+        "vaf_mean": 0.58,
+        "vaf_max": 0.65,
+        "depth_mean": 240.0,
+        "depth_max": 260.0,
+        "has_mol_data": 1,
+    },
 }
 
-IMPORTANCE_DIRECTION = {
-    "Bone marrow blasts": "risk",
-    "White blood cells": "risk",
-    "Monocytes": "risk",
-    "Neutrophils (ANC)": "risk",
-    "Platelets": "protective",
-    "Haemoglobin": "protective",
-}
+# C-index figures: both from the "Test platform" (held-out) evaluation,
+# same methodology for both models. See project README / notebook summary table.
+CINDEX_CLINICAL = 0.65
+CINDEX_FULL = 0.752
 
 
-# Load model
+# Model loading
 
 
-@st.cache_resource
-def load_model():
+@st.cache_resource(show_spinner="Loading clinical model...")
+def load_clinical_model():
     return joblib.load(CLINICAL_RSF)
 
 
+@st.cache_resource(show_spinner="Loading combined clinical + molecular model...")
+def load_full_model():
+    return joblib.load(FULL_RSF)
+
+
+clinical_model, clinical_loaded = None, False
+full_model, full_loaded = None, False
+load_error = ""
+
 try:
-    model = load_model()
-    model_loaded = True
+    clinical_model = load_clinical_model()
+    clinical_loaded = True
 except FileNotFoundError as e:
-    model_loaded = False
     load_error = str(e)
+
+try:
+    full_model = load_full_model()
+    full_loaded = True
+except FileNotFoundError as e:
+    load_error = load_error or str(e)
+
+
+# Feature construction
+
+
+def build_clinical_row(bm_blast, wbc, anc, monocytes, hb, plt_count, cyto_class):
+    return {
+        "BM_BLAST": bm_blast,
+        "WBC": wbc,
+        "ANC": anc,
+        "MONOCYTES": monocytes,
+        "HB": hb,
+        "PLT": plt_count,
+        "CYTO_CLASS": cyto_class,
+        "CENTER": CENTER_VALUE,
+    }
+
+
+def build_molecular_row(profile_key: str) -> dict:
+    profile = MOLECULAR_PROFILES[profile_key]
+    row = {f"GENE_{g}": 0 for g in MOLECULAR_GENE_COLS}
+    row.update({f"EFFECT_{e}": 0 for e in MOLECULAR_EFFECT_COLS})
+    for gene in profile["genes"]:
+        row[f"GENE_{gene}"] = 1
+    for effect in profile["effects"]:
+        row[f"EFFECT_{effect}"] = 1
+    row["N_MUT"] = profile["n_mut"]
+    row["N_GENES"] = profile["n_genes"]
+    row["VAF_MEAN"] = profile["vaf_mean"]
+    row["VAF_MAX"] = profile["vaf_max"]
+    row["DEPTH_MEAN"] = profile["depth_mean"]
+    row["DEPTH_MAX"] = profile["depth_max"]
+    row["HAS_MOL_DATA"] = profile["has_mol_data"]
+    return row
 
 
 # Welcome message
@@ -112,15 +244,17 @@ st.title("🩺 Leukemia Survival Predictor")
 
 st.markdown(
     """
-<div style="background-color:#1e3a5f; padding:16px; border-radius:8px; margin-bottom:16px;">
-<b>What is this tool?</b><br>
-This application estimates the survival probability of a patient diagnosed with
-<b>Acute Myeloid Leukemia (AML)</b> based on their clinical profile at diagnosis.
-It uses a <b>Random Survival Forest</b> trained on <b>3,323 AML patients</b>
-across 10 European centres.<br><br>
-<b>Who is it for?</b> Clinicians, researchers, and students in haematology/oncology.<br>
-<b>⚠️ Important:</b> For <u>research and educational purposes only</u>.
-Must not replace clinical judgement or be used for treatment decisions.
+<div style="background-color:#1e3a5f; padding:16px; border-radius:8px; margin-bottom:16px; color:#eef2fa !important;">
+<b style="color:#eef2fa;">What is this tool?</b><br>
+<span style="color:#eef2fa;">This application estimates the survival probability of a patient diagnosed with
+<b style="color:#eef2fa;">Acute Myeloid Leukemia (AML)</b> based on their clinical profile at diagnosis,
+and shows how adding molecular data refines the prediction.
+It uses <b style="color:#eef2fa;">Random Survival Forest</b> models trained on <b style="color:#eef2fa;">3,323 AML patients</b>
+across 10 European centres.</span><br><br>
+<b style="color:#eef2fa;">Who is it for?</b> <span style="color:#eef2fa;">Clinicians, researchers, and students in haematology/oncology.</span><br>
+<b style="color:#eef2fa;">⚠️ Important:</b> <span style="color:#eef2fa;">For <u>research and educational purposes only</u>.
+Must not replace clinical judgement or be used for treatment decisions. Molecular profiles below are
+illustrative synthetic examples, not real patient data.</span>
 </div>
 """,
     unsafe_allow_html=True,
@@ -128,31 +262,31 @@ Must not replace clinical judgement or be used for treatment decisions.
 
 with st.expander("📖 How to use — 3 steps", expanded=False):
     st.markdown("""
-**Step 1 — Cytogenetic risk group**
-Select the Caryotype classification from the cytogenetic analysis report (available at AML diagnosis).
+**Step 1 — Cytogenetic risk group & hematological markers**
+Select the Caryotype classification and enter the blood count / bone marrow values.
 
-**Step 2 — Hematological markers**
-Enter the values from the patient's blood count (NFS) and bone marrow aspirate at diagnosis.
+**Step 2 — Molecular profile**
+Choose a molecular scenario: no molecular data, a favourable marker (CEBPA),
+or an adverse marker (TP53) — to see how molecular information shifts the prediction.
 
 **Step 3 — Click "Predict survival"**
-The model returns the predicted survival curve, key probabilities at 1 and 3 years,
-estimated median survival, and a clinical interpretation.
+The app compares the clinical-only prediction against the clinical + molecular
+prediction, side by side.
 """)
 
 st.divider()
 
-if not model_loaded:
+if not (clinical_loaded and full_loaded):
     st.error(
         f"Model not found. Please run the training notebook first.\n\n{load_error}"
     )
     st.stop()
 
 
-# Sidebar — compact layout
+# Sidebar - clinical inputs
 
 st.sidebar.header("🩺 Patient clinical profile")
 
-# Cytogenetics
 st.sidebar.markdown("**🧬 Cytogenetic risk group**")
 cyto_display = st.sidebar.selectbox(
     "Caryotype (ELN 2022)",
@@ -166,7 +300,6 @@ st.sidebar.caption(f"ℹ️ {CYTO_DESCRIPTIONS[cyto_display]}")
 st.sidebar.markdown("---")
 st.sidebar.markdown("**🩸 Hematological markers**")
 
-# Compact number inputs — 2 columns
 col_a, col_b = st.sidebar.columns(2)
 
 with col_a:
@@ -206,6 +339,16 @@ with col_b:
         "PLT", 2.0, 600.0, 167.0, 1.0, label_visibility="collapsed", key="plt"
     )
     st.caption(NORMAL_RANGES["PLT"][2])
+
+st.sidebar.markdown("---")
+st.sidebar.markdown("**🧬 Molecular profile**")
+mol_choice = st.sidebar.radio(
+    "Choose a scenario",
+    options=list(MOLECULAR_PROFILES.keys()),
+    format_func=lambda k: MOLECULAR_PROFILES[k]["label"],
+    label_visibility="collapsed",
+)
+st.sidebar.caption(f"ℹ️ {MOLECULAR_PROFILES[mol_choice]['description']}")
 
 st.sidebar.markdown("---")
 predict_btn = st.sidebar.button(
@@ -263,90 +406,134 @@ with col1:
         )
     st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
 
+    st.caption(f"🧬 Molecular scenario: **{MOLECULAR_PROFILES[mol_choice]['label']}**")
+
 with col2:
-    st.subheader("About the model")
-    st.markdown("""
-| | |
-|---|---|
-| **Algorithm** | Random Survival Forest |
-| **Training dataset** | 3,323 AML patients, 10 European centres |
-| **Cytogenetic classification** | ELN 2022 standards |
+    st.subheader("About the models")
+    st.markdown(f"""
+| | Clinical only | Clinical + molecular |
+|---|---|---|
+| **Algorithm** | Random Survival Forest | Random Survival Forest |
+| **C-index (test set)** | {CINDEX_CLINICAL:.3f} | {CINDEX_FULL:.3f} |
 """)
     st.caption(
-        "Discrimination score: 0.716 on clinical features alone "
-        "(0.5 = random ranking, 1.0 = perfect ranking)."
+        "Discrimination score (C-index) on the held-out test platform: 0.5 = random ranking, "
+        "1.0 = perfect ranking. Training dataset: 3,323 AML patients, 10 European centres, "
+        "ELN 2022 cytogenetic classification."
     )
 
 
 # Prediction
 
 if predict_btn:
-    X_df = pd.DataFrame(
-        [
-            [
-                bm_blast,
-                wbc,
-                anc,
-                monocytes,
-                hb,
-                plt_count,
-                cyto_class,
-                "KI",
-            ]
-        ],
-        columns=[
-            "BM_BLAST",
-            "WBC",
-            "ANC",
-            "MONOCYTES",
-            "HB",
-            "PLT",
-            "CYTO_CLASS",
-            "CENTER",
-        ],
+    clinical_row = build_clinical_row(
+        bm_blast, wbc, anc, monocytes, hb, plt_count, cyto_class
     )
+    X_clinical = pd.DataFrame([clinical_row])
+
+    molecular_row = build_molecular_row(mol_choice)
+    full_row = {**clinical_row, **molecular_row}
+    X_full = pd.DataFrame([full_row])
 
     try:
-        surv_fn = model.predict_survival_function(X_df)[0]
+        surv_clinical = clinical_model.predict_survival_function(X_clinical)[0]
+        surv_full = full_model.predict_survival_function(X_full)[0]
     except Exception as e:
         st.error(f"Prediction error: {e}")
         st.stop()
 
-    times, probs = surv_fn.x, surv_fn(surv_fn.x)
-    below_50 = times[probs <= 0.5]
-    median_surv = below_50[0] if len(below_50) > 0 else None
-    t1 = float(probs[times <= 1.0][-1]) if (times <= 1.0).any() else 1.0
-    t3 = float(probs[times <= 3.0][-1]) if (times <= 3.0).any() else 1.0
+    t_clin, p_clin = surv_clinical.x, surv_clinical(surv_clinical.x)
+    t_full, p_full = surv_full.x, surv_full(surv_full.x)
+
+    def summarize(times, probs):
+        below_50 = times[probs <= 0.5]
+        median = below_50[0] if len(below_50) > 0 else None
+        t1 = float(probs[times <= 1.0][-1]) if (times <= 1.0).any() else 1.0
+        t3 = float(probs[times <= 3.0][-1]) if (times <= 3.0).any() else 1.0
+        return t1, t3, median
+
+    t1_clin, t3_clin, med_clin = summarize(t_clin, p_clin)
+    t1_full, t3_full, med_full = summarize(t_full, p_full)
 
     st.divider()
-    st.subheader("Predicted survival")
 
-    m1, m2, m3 = st.columns(3)
-    m1.metric("1-year survival probability", f"{t1:.1%}")
-    m2.metric("3-year survival probability", f"{t3:.1%}")
-    m3.metric(
-        "Estimated median survival",
-        f"{median_surv:.1f} years" if median_surv else "> follow-up period",
-    )
+    show_comparison = mol_choice != "none"
 
-    # Survival curve
-    fig, ax = plt.subplots(figsize=(9, 4))
-    ax.step(
-        times, probs, where="post", color="#2563eb", lw=2.5, label="Predicted survival"
-    )
-    ax.fill_between(times, probs, alpha=0.1, color="#2563eb", step="post")
-    ax.axhline(0.5, color="gray", ls="--", lw=0.8, label="50% threshold")
-    if median_surv:
-        ax.axvline(
-            median_surv,
-            color="#dc2626",
-            ls=":",
-            lw=1.5,
-            label=f"Median ≈ {median_surv:.1f} yr",
+    if show_comparison:
+        st.subheader("Predicted survival — clinical only vs clinical + molecular")
+    else:
+        st.subheader("Predicted survival — clinical only")
+        st.caption(
+            "👈 Select a molecular scenario (favourable or adverse marker) in the sidebar "
+            "to see how molecular data would refine this prediction."
         )
+
+    if show_comparison:
+        mc1, mc2, mc3 = st.columns(3)
+        mc1.metric(
+            "1-year survival",
+            f"{t1_full:.1%}",
+            delta=f"{(t1_full - t1_clin) * 100:+.1f} pts vs clinical only",
+        )
+        mc2.metric(
+            "3-year survival",
+            f"{t3_full:.1%}",
+            delta=f"{(t3_full - t3_clin) * 100:+.1f} pts vs clinical only",
+        )
+        mc3.metric(
+            "Estimated median survival",
+            f"{med_full:.1f} years" if med_full else "> follow-up period",
+        )
+    else:
+        mc1, mc2, mc3 = st.columns(3)
+        mc1.metric("1-year survival", f"{t1_clin:.1%}")
+        mc2.metric("3-year survival", f"{t3_clin:.1%}")
+        mc3.metric(
+            "Estimated median survival",
+            f"{med_clin:.1f} years" if med_clin else "> follow-up period",
+        )
+
+    # Survival curve — comparison or clinical-only
+    fig, ax = plt.subplots(figsize=(9, 4.5))
+
+    if show_comparison:
+        ax.step(
+            t_clin,
+            p_clin,
+            where="post",
+            color="#94a3b8",
+            lw=2,
+            ls="--",
+            label=f"Clinical only (C-index {CINDEX_CLINICAL:.3f})",
+        )
+        ax.step(
+            t_full,
+            p_full,
+            where="post",
+            color="#2563eb",
+            lw=2.5,
+            label=f"Clinical + molecular (C-index {CINDEX_FULL:.3f})",
+        )
+        ax.fill_between(t_full, p_full, alpha=0.08, color="#2563eb", step="post")
+        title_suffix = MOLECULAR_PROFILES[mol_choice]["label"]
+    else:
+        ax.step(
+            t_clin,
+            p_clin,
+            where="post",
+            color="#2563eb",
+            lw=2.5,
+            label=f"Clinical only (C-index {CINDEX_CLINICAL:.3f})",
+        )
+        ax.fill_between(t_clin, p_clin, alpha=0.08, color="#2563eb", step="post")
+        title_suffix = "no molecular data"
+
+    ax.axhline(0.5, color="gray", ls=":", lw=0.8, label="50% threshold")
     ax.set_xlabel("Time since diagnosis (years)", fontsize=11)
     ax.set_ylabel("Probability of being alive", fontsize=11)
-    ax.set_title(f"Survival curve — {cyto_class} · {risk_badge}", fontsize=12)
+    ax.set_title(
+        f"Survival curve — {cyto_class} · {risk_badge} · {title_suffix}", fontsize=11
+    )
     ax.set_ylim(0, 1.05)
     ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda y, _: f"{y:.0%}"))
     ax.legend(frameon=False, fontsize=9)
@@ -354,35 +541,67 @@ if predict_btn:
     plt.tight_layout()
     st.pyplot(fig)
 
+    if show_comparison:
+        st.caption(
+            "The dashed grey curve uses clinical and cytogenetic data only. The solid blue curve "
+            "adds the molecular profile selected in the sidebar — the gap between the two illustrates "
+            "the added value of molecular testing at diagnosis."
+        )
+    else:
+        st.caption(
+            "This curve uses clinical and cytogenetic data only — no molecular profile has been selected."
+        )
+
     # Clinical interpretation
     st.subheader("🩺 Clinical interpretation")
 
+    ref_t1 = t1_full if show_comparison else t1_clin
+    ref_t3 = t3_full if show_comparison else t3_clin
+    ref_median = med_full if show_comparison else med_clin
+
     surv_level = (
         "very favourable"
-        if t1 >= 0.80
-        else "favourable" if t1 >= 0.65 else "moderate" if t1 >= 0.50 else "poor"
+        if ref_t1 >= 0.80
+        else (
+            "favourable" if ref_t1 >= 0.65 else "moderate" if ref_t1 >= 0.50 else "poor"
+        )
     )
     median_text = (
-        f"an estimated median survival of **{median_surv:.1f} years**"
-        if median_surv
+        f"an estimated median survival of **{ref_median:.1f} years**"
+        if ref_median
         else "a median survival that exceeds the observation period (> 10 years)"
     )
+
+    if show_comparison:
+        molecular_sentence = (
+            f"The cytogenetic class <b>{cyto_class}</b> ({risk_badge}) combined with the molecular scenario "
+            f'"<b>{MOLECULAR_PROFILES[mol_choice]["label"]}</b>" shifts the prediction by '
+            f"<b>{(t1_full - t1_clin) * 100:+.1f} points</b> at 1 year compared to clinical data alone — "
+            f"illustrating why molecular profiling improves prognostic accuracy "
+            f"(C-index {CINDEX_FULL:.3f} vs {CINDEX_CLINICAL:.3f})."
+        )
+    else:
+        molecular_sentence = (
+            f"The cytogenetic class <b>{cyto_class}</b> ({risk_badge}) is the most influential "
+            f"factor in this prediction, consistent with ELN 2022 clinical guidelines. "
+            f"Select a molecular scenario in the sidebar to see how molecular testing would "
+            f"refine this estimate (C-index {CINDEX_FULL:.3f} vs {CINDEX_CLINICAL:.3f} clinical-only)."
+        )
 
     st.markdown(
         f"""
 <div style="border-left:4px solid {risk_color}; padding:14px 16px; border-radius:0 6px 6px 0; margin-bottom:12px;">
 This patient has a <b>{surv_level} short-term prognosis</b>, with a
-<b>{t1:.0%} probability of survival at 1 year</b> and <b>{t3:.0%} at 3 years</b>,
+<b>{ref_t1:.0%} probability of survival at 1 year</b> and <b>{ref_t3:.0%} at 3 years</b>,
 and {median_text}.<br><br>
-The cytogenetic class <b>{cyto_class}</b> ({risk_badge}) is the most influential
-factor in this prediction, consistent with ELN 2022 clinical guidelines.
+{molecular_sentence}
 </div>
 """,
         unsafe_allow_html=True,
     )
 
-    # Key factors — simple readable table
-    st.subheader("🔍 Which markers matter most?")
+    # Key clinical factors
+    st.subheader("🔍 Which clinical markers matter most?")
     st.caption(
         "This table shows how each clinical marker influences survival in AML, "
         "and how this patient compares to normal reference values."
@@ -397,7 +616,7 @@ factor in this prediction, consistent with ELN 2022 clinical guidelines.
         ("PLT", plt_count, "G/L", "protective", "Higher platelets = better prognosis"),
     ]
 
-    rows = []
+    marker_rows = []
     for feat, val, unit, direction, meaning in marker_data:
         lo, hi, _ = NORMAL_RANGES[feat]
         effect_icon = "🔴" if direction == "risk" else "🟢"
@@ -408,7 +627,7 @@ factor in this prediction, consistent with ELN 2022 clinical guidelines.
         else:
             patient_status = f"✅ Normal — {val} {unit}"
 
-        rows.append(
+        marker_rows.append(
             {
                 "Marker": FEATURE_LABELS[feat],
                 "Effect on survival": f"{effect_icon}  {meaning}",
@@ -416,20 +635,24 @@ factor in this prediction, consistent with ELN 2022 clinical guidelines.
             }
         )
 
-    st.dataframe(
-        pd.DataFrame(rows),
-        hide_index=True,
-        use_container_width=True,
-    )
+    st.dataframe(pd.DataFrame(marker_rows), hide_index=True, use_container_width=True)
 
     st.caption(
         "🔴 Risk factors: higher values are associated with worse prognosis. "
         "🟢 Protective factors: higher values are associated with better prognosis. "
-        "⚠️ Values outside the normal reference range for this patient."
+        "⚠️ Values outside the normal reference range for this patient. "
+        "Based on univariate Cox analysis of clinical markers."
     )
+
+    if show_comparison and MOLECULAR_PROFILES[mol_choice]["genes"]:
+        st.caption(
+            f"🧬 Molecular marker in this scenario: "
+            f"**{', '.join(MOLECULAR_PROFILES[mol_choice]['genes'])}** "
+            f"({'adverse' if mol_choice == 'adverse' else 'favourable'} prognostic association)."
+        )
 
 else:
     st.info(
-        "👈 Enter the patient's clinical profile in the sidebar "
-        "and click **Predict survival** to see the results."
+        "👈 Enter the patient's clinical profile and choose a molecular scenario in the sidebar, "
+        "then click **Predict survival** to compare both models."
     )
