@@ -21,11 +21,11 @@ MOLECULAR_TEST = DATA_DIR / "X_test" / "molecular_test.csv"
 MODELS_DIR = PROJECT_ROOT / "models"
 
 CLINICAL_MODEL_DIR = MODELS_DIR / "clinical"
-CLINICAL_RSF = CLINICAL_MODEL_DIR / "rsf_model.joblib"
+CLINICAL_RSF = CLINICAL_MODEL_DIR / "rsf_model_compressed.joblib"
 CLINICAL_PIPELINE = CLINICAL_MODEL_DIR / "preprocessing_pipeline.joblib"
 
 FULL_MODEL_DIR = MODELS_DIR / "full"
-FULL_RSF = FULL_MODEL_DIR / "rsf_model.joblib"
+FULL_RSF = FULL_MODEL_DIR / "rsf_model_compressed.joblib"
 FULL_PIPELINE = FULL_MODEL_DIR / "preprocessing_pipeline.joblib"
 FULL_SELECTED_FEATURES = FULL_MODEL_DIR / "selected_features.joblib"
 FULL_MOLECULAR_FEATURES = FULL_MODEL_DIR / "molecular_features.joblib"
