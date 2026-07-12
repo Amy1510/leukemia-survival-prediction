@@ -21,11 +21,21 @@ MOLECULAR_TEST = DATA_DIR / "X_test" / "molecular_test.csv"
 MODELS_DIR = PROJECT_ROOT / "models"
 
 CLINICAL_MODEL_DIR = MODELS_DIR / "clinical"
-CLINICAL_RSF = CLINICAL_MODEL_DIR / "rsf_model_compressed.joblib"
-CLINICAL_PIPELINE = CLINICAL_MODEL_DIR / "preprocessing_pipeline.joblib"
-
 FULL_MODEL_DIR = MODELS_DIR / "full"
+
+# Raw models straight out of the training notebook (survival_analysis.ipynb).
+# These are big (1-2 GB) and NOT tracked in git, the notebook should only
+# ever read/write through these two paths, never the compressed ones below.
+CLINICAL_RSF_RAW = CLINICAL_MODEL_DIR / "rsf_model.joblib"
+FULL_RSF_RAW = FULL_MODEL_DIR / "rsf_model.joblib"
+
+# What the deployed app actually loads. Compressed + pruned version of the
+# raw models above, produced by scripts/compress_models.py. Small enough to
+# live in the repo and to fit in Streamlit Cloud's memory limits.
+CLINICAL_RSF = CLINICAL_MODEL_DIR / "rsf_model_compressed.joblib"
 FULL_RSF = FULL_MODEL_DIR / "rsf_model_compressed.joblib"
+
+CLINICAL_PIPELINE = CLINICAL_MODEL_DIR / "preprocessing_pipeline.joblib"
 FULL_PIPELINE = FULL_MODEL_DIR / "preprocessing_pipeline.joblib"
 FULL_SELECTED_FEATURES = FULL_MODEL_DIR / "selected_features.joblib"
 FULL_MOLECULAR_FEATURES = FULL_MODEL_DIR / "molecular_features.joblib"
@@ -59,11 +69,13 @@ def check_data_files() -> None:
 
 
 def check_models() -> None:
-    """Verify that trained models exist."""
+    """Verify that trained (raw) and deployed (compressed) models exist."""
     models = {
-        "clinical/rsf_model": CLINICAL_RSF,
+        "clinical/rsf_model (raw, straight from training)": CLINICAL_RSF_RAW,
+        "clinical/rsf_model_compressed (what the app uses)": CLINICAL_RSF,
         "clinical/preprocessing_pipeline": CLINICAL_PIPELINE,
-        "full/rsf_model": FULL_RSF,
+        "full/rsf_model (raw, straight from training)": FULL_RSF_RAW,
+        "full/rsf_model_compressed (what the app uses)": FULL_RSF,
         "full/preprocessing_pipeline": FULL_PIPELINE,
         "full/selected_features": FULL_SELECTED_FEATURES,
         "full/molecular_features": FULL_MOLECULAR_FEATURES,
