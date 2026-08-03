@@ -214,3 +214,63 @@ This project is licensed under the **MIT License** — see the [LICENSE](LICENSE
 
 The dataset is **not** covered by this license and remains subject to the QRT Data Challenge
 terms of use. See [`data/README.md`](data/README.md) for access instructions.
+
+
+## Explainability
+
+Predictions are explained **per patient** with SHAP, directly inside the Streamlit app.
+
+### Why it needs a specific approach
+
+A Random Survival Forest outputs a **full survival curve**, not a single score but SHAP
+requires a scalar. Two constraints follow:
+
+| Constraint | Solution |
+|---|---|
+| Model returns a curve, SHAP needs a number | Fix a horizon *t\**, explain **S(t\*)** the probability of being alive at that horizon |
+| `TreeExplainer` does not support `RandomSurvivalForest` | Use **`KernelExplainer`** on the scalarised output |
+
+Contributions are computed in the **raw feature space**, with the fitted pipeline replaying
+its own preprocessing internally. Explanations therefore stay attached to interpretable
+variables (`CYTO_CLASS`, `HB`, `GENE_TP53`) rather than one-hot encoded columns.
+
+### How to read the output
+
+```
+baseline  +  Σ contributions  =  predicted survival
+ 61.1 %          +11.9 pts            73.1 %
+```
+
+- **Baseline**:  mean survival of the reference population drawn from the training set.
+- **Each bar**: the share of the gap attributable to one variable
+  (🟢 raises survival · 🔴 lowers it).
+- **Sanity check**: the equality above is SHAP's **additivity property**, verified on every
+  prediction. If it holds, the decomposition is exact rather than approximate.
+
+> **Interpretation note.** Contributions are relative to the **training cohort mean**, not to
+> clinical reference ranges. A haemoglobin of 10 g/dL is *abnormal* clinically (normal 12–16)
+> yet appears in green, because it remains above the average of a largely anaemic AML cohort.
+> Both readings are correct. They use different baselines.
+
+### Validation
+
+| Check | Result |
+|---|---|
+| Additivity | exact on every prediction |
+| Direction vs. univariate Cox | consistent (HB, PLT protective; BM_BLAST, WBC, ANC, MONOCYTES adverse) |
+| Global ranking vs. log-rank | cytogenetics (ELN) ranks first, as expected |
+| Model consistency | the SHAP panel explains the same model displayed above (clinical-only or clinical + molecular) |
+
+### In the application
+
+| Control | Effect |
+|---|---|
+| **Horizon (years)** | point of the survival curve being explained, a feature may weigh differently at 1 vs 5 years |
+| **Group by family** | display only: individual variables, or pooled into families (Hematology, Cytogenetics, Mutated genes, Mutation burden) |
+| **Background size** | number of reference patients defining the baseline: larger = more stable, heavier |
+| **nsamples** | number of feature coalitions sampled: larger = more precise, heavier |
+
+Computation is triggered on demand, **cached** per (profile, horizon, settings), and batched
+with memory release, so the app runs on a standard machine.
+
+📄 **[Bias and fairness analysis report (PDF)](reports/)**
