@@ -39,3 +39,7 @@ Presentation*
 notebooks/Benchmark_nqBJ7fO.ipynb
 notebooks/survival_analysis2.ipynb
 
+# ===== Explainability =====
+models/full/shap_background.parquet
+models/full/test_features.parquet
+
