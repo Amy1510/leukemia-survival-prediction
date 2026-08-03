@@ -1,0 +1,558 @@
+
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{lmodern}
+
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{booktabs}         
+\midrule, \bottomrule)
+\usepackage{longtable}         
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage[colorlinks=true,linkcolor=black,urlcolor=blue,citecolor=blue]{hyperref}
+
+% --- Colours -----------------------------------------------------------------
+\definecolor{accent}{HTML}{1E3A5F}
+\definecolor{softgrey}{HTML}{F5F5F5}
+\definecolor{warnred}{HTML}{C0392B}
+\definecolor{okgreen}{HTML}{1E8449}
+
+% --- Header / footer ---------------------------------------------------------
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{\small Bias and Fairness Analysis}
+\rhead{\small RSF --- AML Overall Survival}
+\cfoot{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% --- Handy macros ------------------------------------------------------------
+\newcommand{\var}[1]{\texttt{#1}}                      % variable names
+\newcommand{\bad}[1]{\textcolor{warnred}{\textbf{#1}}} % highlight a problem
+\newcommand{\good}[1]{\textcolor{okgreen}{\textbf{#1}}}% highlight a good result
+
+% Boxed key-finding paragraph
+\usepackage{mdframed}
+\newmdenv[
+  backgroundcolor=softgrey,
+  linecolor=accent,
+  linewidth=2pt,
+  topline=false, bottomline=false, rightline=false,
+  innerleftmargin=10pt, innertopmargin=8pt, innerbottommargin=8pt,
+  skipabove=10pt, skipbelow=10pt
+]{keybox}
+
+% =============================================================================
+\title{\vspace{-1.5cm}\textbf{Bias and Fairness Analysis}\\[0.3cm]
+       \large Overall Survival in Acute Myeloid Leukemia}
+
+\date{\today}
+
+\begin{document}
+\maketitle
+\thispagestyle{fancy}
+
+\begin{abstract}
+\noindent
+A global C-index of 0.752 describes a model's average behaviour but says nothing about
+\emph{who} it serves well. This report audits a Random Survival Forest trained on 3{,}323 AML (Acute Myeloid Leukemia)
+patients across 10 European centres, examining whether predictive quality is distributed
+equitably across patient subgroups. Two independent methods establish that the model does not
+rely on the treating hospital. However, calibration analysis reveals a systematic and
+reproducible optimism bias for adverse-risk cytogenetic groups, invisible to discrimination
+metrics.
+\end{abstract}
+\newpage
+\tableofcontents
+\newpage
+
+
+\section{Introduction}
+
+
+A global performance figure describes a model's \emph{average} behaviour. It says nothing about
+\textbf{who} the model serves well and who it serves poorly. A model reaching a C-index of
+0.752 overall may be excellent for the majority of patients and unreliable for a specific 
+and potentially vulnerable subgroup.
+
+Bias analysis addresses a question that aggregate metrics cannot: \textbf{is predictive quality
+distributed equitably across patient subgroups, or does the model systematically disadvantage
+an identifiable population?}
+
+In a clinical context, this question is not merely statistical. A prognostic tool that
+overestimates survival for high-risk patients could contribute to under-treatment, delayed
+referral to intensive care pathways, or inappropriate reassurance. \emph{The direction of an
+error matters as much as its magnitude.}
+
+% =============================================================================
+\section{A taxonomy of bias}
+% =============================================================================
+
+Bias in a machine learning pipeline can originate at four distinct stages. Distinguishing them
+matters because each requires a different remedy.
+
+\subsection{Data-level bias}
+
+Introduced before any model is trained.
+
+\begin{longtable}{@{}p{3.6cm} p{5.5cm} p{5.5cm}@{}}
+\toprule
+\textbf{Type} & \textbf{Definition} & \textbf{Typical consequence} \\
+\midrule
+\endhead
+Sampling / representation & Some subgroups are under-represented relative to the target
+population & The model learns those groups poorly \\
+\addlinespace
+Selection & Inclusion criteria systematically exclude a category of patients & Predictions do
+not generalise beyond the recruited population \\
+\addlinespace
+Survivorship & Individuals who experienced the outcome early are absent by construction &
+Survival is structurally overestimated \\
+\addlinespace
+Measurement & A variable is recorded differently across sources or periods & The model learns
+measurement artefacts rather than biology \\
+\addlinespace
+Annotation / documentation & Missing data is concentrated in specific groups rather than random
+& Missingness itself becomes an informative and unfair signal \\
+\bottomrule
+\end{longtable}
+
+\subsection{Model-level bias}
+
+Arises from the learning algorithm itself, even on well-balanced data.
+
+\begin{longtable}{@{}p{3.6cm} p{5.5cm} p{5.5cm}@{}}
+\toprule
+\textbf{Type} & \textbf{Definition} & \textbf{Typical consequence} \\
+\midrule
+\endhead
+Calibration & Predicted probabilities deviate systematically from observed frequencies &
+Correct ranking, but wrong absolute risk \\
+\addlinespace
+Regression to the mean & Ensemble averaging pulls extreme predictions toward the distribution
+centre & Severe and mild cases are both under-differentiated \\
+\addlinespace
+Discrimination & Ranking quality differs across subgroups & The model is less useful for some
+patients \\
+\addlinespace
+Aggregation & A single model is fitted where subgroups follow different underlying
+relationships & Neither subgroup is optimally served \\
+\bottomrule
+\end{longtable}
+
+\subsection{Leakage and confounding}
+
+\begin{longtable}{@{}p{3.6cm} p{5.5cm} p{5.5cm}@{}}
+\toprule
+\textbf{Type} & \textbf{Definition} & \textbf{Typical consequence} \\
+\midrule
+\endhead
+Contextual leakage & A technical or administrative variable carries outcome signal &
+Performance does not transfer to a new setting \\
+\addlinespace
+Institutional & The model relies on the treating centre rather than patient characteristics &
+Prognosis depends on place of care, not biology \\
+\addlinespace
+Proxy & A neutral variable encodes a protected or structural attribute & Indirect
+discrimination \\
+\bottomrule
+\end{longtable}
+
+\subsection{Deployment bias}
+
+\begin{longtable}{@{}p{3.6cm} p{5.5cm} p{5.5cm}@{}}
+\toprule
+\textbf{Type} & \textbf{Definition} & \textbf{Typical consequence} \\
+\midrule
+\endhead
+Distribution shift & The deployment population differs from the training population & Silent
+degradation of performance \\
+\addlinespace
+Out-of-distribution input & The interface allows inputs never observed in training &
+Predictions produced with no empirical basis \\
+\addlinespace
+Automation & Users over-trust model output & Amplification of any residual bias \\
+\bottomrule
+\end{longtable}
+
+% =============================================================================
+\section{Why survival models require a specific fairness framework}
+% =============================================================================
+
+Standard fairness metrics demographic parity, equalised odds, equal opportunity  assume
+a \textbf{classification} setting with fully observed binary outcomes. Neither assumption holds
+here.
+
+\paragraph{The outcome is a duration, not a label.}
+There is no confusion matrix, therefore no false positive or false negative rate to equalise
+across groups.
+
+\paragraph{The outcome is right-censored for approximately 48\% of patients.}
+For nearly half the cohort we know only that the patient was alive at last follow-up. This has
+two methodological consequences:
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{The C-index depends on the censoring distribution.} A subgroup with short
+        follow-up produces fewer comparable pairs, and therefore an unstable estimate. Raw
+        differences between groups cannot be interpreted as bias without controlling for this.
+  \item \textbf{Kaplan--Meier is the only unbiased reference} for observed survival, and its
+        reliability degrades as censoring increases.
+\end{itemize}
+
+\paragraph{Discrimination and calibration are independent failure modes.}
+A model may rank patients correctly within a subgroup while being systematically wrong about
+their absolute survival. Clinically, the second error is the more dangerous, and it is entirely
+invisible to the C-index. Any credible fairness audit of a survival model must therefore
+evaluate \textbf{both}.
+
+% =============================================================================
+\section{Application to our study}
+% =============================================================================
+
+\subsection{Available axes}
+
+The dataset contains: \var{ID}, \var{CENTER}, \var{BM\_BLAST}, \var{WBC}, \var{ANC},
+\var{MONOCYTES}, \var{HB}, \var{PLT}, \var{CYTOGENETICS}, \var{CYTO\_CLASS}, \var{OS\_YEARS},
+\var{OS\_STATUS}, plus patient-level molecular aggregates.
+
+\begin{keybox}
+\textbf{No age and no sex variable is available.} Demographic fairness --- the axis regulators
+and reviewers examine first --- therefore \textbf{cannot be assessed}. This is stated as a
+limitation rather than worked around. It is also a modelling weakness in its own right: age is
+the second strongest prognostic factor in AML after cytogenetics.
+\end{keybox}
+
+Three axes remain analysable:
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}p{2.8cm} p{3.5cm} p{7.5cm}@{}}
+\toprule
+\textbf{Axis} & \textbf{Levels} & \textbf{Fairness question} \\
+\midrule
+\var{CENTER} & 23 hospital centres & Does prognosis depend on where the patient was treated? \\
+\var{CYTO\_CLASS} & 8 ELN 2022 risk groups & Is the model as reliable for adverse-risk as for
+favourable-risk patients? \\
+\var{HAS\_MOL\_DATA} & tested / not tested & Does the model underserve patients without
+molecular profiling? \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\var{CENTER} is the most sensitive axis, because it is \textbf{a feature of the model itself}.
+The RSF could have learned institutional differences in care, recruitment or documentation
+rather than patient biology, a textbook case of institutional bias.
+
+\subsection{Confounders identified before analysis}
+
+\paragraph{Censoring is highly heterogeneous across centres}, ranging from 8.4\% to 90.2\%, and
+correlates with apparent survival:
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+\textbf{Centre} & \textbf{n} & \textbf{Censored} & \textbf{KM $S(2y)$} & \textbf{Max follow-up} \\
+\midrule
+MUV  &  83 &  8.4\% & 0.446 & 12.79 y \\
+UOB  &  86 & 18.6\% & 0.581 & 14.70 y \\
+CCH  & 140 & 76.4\% & 0.834 &  9.32 y \\
+ROM  & 102 & 90.2\% & 0.809 &  2.84 y \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Centres with short follow-up appear to have better outcomes simply because fewer deaths were
+observed. This is a censoring artefact, not a clinical difference.
+
+\paragraph{Subgroup sizes are severely imbalanced}, from 786 patients (KI) to 6 (REL), and from
+1{,}780 (\var{Normal}) to 79 (\var{Complex}). Estimates below roughly 50 patients are
+statistically uninterpretable.
+
+% =============================================================================
+\section{Methodology}
+% =============================================================================
+
+\subsection{Discrimination per subgroup}
+
+C-index computed \textbf{within} each subgroup, with \textbf{bootstrap 95\% confidence
+intervals} (200 resamples). Subgroups below 50 patients or 15 events are reported but not
+interpreted.
+
+\begin{keybox}
+\textbf{Decision rule:} bias is concluded only where confidence intervals are
+\textbf{disjoint} never from raw gaps. With subgroup sizes ranging over two orders of
+magnitude, overlapping intervals are the expected outcome even under perfect fairness.
+\end{keybox}
+
+\subsection{Calibration per subgroup}
+
+Mean predicted survival at 2 years compared against the \textbf{Kaplan--Meier} estimate
+observed in the same subgroup:
+
+\begin{equation}
+\text{gap} \;=\; \overline{\hat{S}(2\text{y})} \;-\; S_{\text{KM}}(2\text{y})
+\end{equation}
+
+A \textbf{positive gap means the model is too optimistic} for that group. Censoring rate is
+reported alongside each gap, since a heavily censored subgroup yields an unreliable KM
+reference.
+
+\subsection{Dependence on institutional variables}
+
+\textbf{Permutation test:} the \var{CENTER} column is randomly shuffled and the loss in C-index
+measured (5 repetitions). If the model genuinely relies on the treating hospital, destroying
+that information should degrade performance. A drop below $\sim$0.005 indicates negligible
+dependence. This is cross-checked against the SHAP analysis conducted independently at the
+individual patient level.
+
+\subsection{Overfitting control}
+
+Because subgroup metrics are computed on training data, the calibration analysis is repeated on
+a held-out split (25\%, stratified on event status) to verify that any observed miscalibration
+is not an artefact of memorisation.
+
+% =============================================================================
+\section{Results}
+% =============================================================================
+
+\subsection{Discrimination --- no detectable bias}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}lccl@{}}
+\toprule
+\textbf{Axis} & \textbf{Observed range} & \textbf{Evaluable} & \textbf{Conclusion} \\
+\midrule
+\var{CENTER}        & 0.752 -- 0.896 & 11 / 23 & all CIs overlap $\rightarrow$ no bias \\
+\var{CYTO\_CLASS}   & 0.743 -- 0.817 &  7 / 8  & weak, non-significant trend \\
+\var{HAS\_MOL\_DATA}& 0.798 vs 0.810 &  2 / 2  & no access-related inequity \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Selected centre results:
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}lrrcc@{}}
+\toprule
+\textbf{Centre} & \textbf{n} & \textbf{events} & \textbf{C-index} & \textbf{95\% CI} \\
+\midrule
+CGM  & 107 &  37 & 0.896 & [0.848 -- 0.932] \\
+PV   & 316 &  81 & 0.861 & [0.828 -- 0.898] \\
+DUS  & 445 & 288 & 0.807 & [0.784 -- 0.832] \\
+KI   & 786 & 483 & 0.800 & [0.781 -- 0.820] \\
+RMCN & 182 & 105 & 0.752 & [0.707 -- 0.802] \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Even the extremes (CGM at 0.896, RMCN at 0.752) are not cleanly separated once uncertainty is
+accounted for. \textbf{The model ranks patients with comparable effectiveness across all
+evaluable subgroups.}
+
+By cytogenetic class, a mild gradient appears, \var{Normal} / \var{5q deletion} around
+0.80--0.82 against \var{Monosomy 7} (0.743) and \var{Complex} (0.747) but intervals
+overlap. The most plausible interpretation is structural rather than a model defect: in
+very-poor-prognosis groups most patients die quickly, leaving less to discriminate.
+
+\subsection{Institutional dependence --- ruled out}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}lr@{}}
+\toprule
+\textbf{Test} & \textbf{Result} \\
+\midrule
+C-index (reference)                & 0.8105 \\
+Drop when \var{CENTER} is shuffled & \good{0.0051 $\pm$ 0.0002} \\
+Relative impact                    & 0.6\% of performance \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Destroying all information about the treating hospital costs the model 0.5\% of a C-index
+point. This is corroborated independently by the SHAP analysis, where \emph{Treatment center}
+contributes $\approx 0$ to individual predictions.
+
+\begin{keybox}
+\good{Prognosis does not depend on where the patient was treated.} This is a negative result,
+and a strong one: the variable is present in the model but effectively inert.
+\end{keybox}
+
+\subsection{Calibration --- systematic bias on adverse-risk groups}
+
+This is the principal finding.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{@{}lrrrrrr@{}}
+\toprule
+\textbf{Group} & \textbf{n} & \textbf{Predicted} & \textbf{Observed} & \textbf{Gap} &
+\textbf{Held-out} & \textbf{Censored} \\
+\midrule
+\bad{Complex}    &   79 & 0.425 & 0.269 & \bad{+0.156} & \bad{+0.148} & 27.8\% \\
+\bad{Monosomy 7} &  164 & 0.345 & 0.246 & \bad{+0.099} & \bad{+0.102} & 25.0\% \\
+Trisomy 8        &  181 & 0.479 & 0.428 & +0.052 & +0.021 & 35.9\% \\
+Missing          &  285 & 0.600 & 0.591 & +0.009 & +0.004 & 40.4\% \\
+5q deletion      &  296 & 0.567 & 0.560 & +0.007 & $-$0.051 & 41.2\% \\
+Other            &  304 & 0.599 & 0.608 & $-$0.010 & +0.016 & 48.7\% \\
+Normal           & 1780 & 0.679 & 0.699 & $-$0.020 & $-$0.024 & 57.2\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{The model is systematically too optimistic for patients with adverse cytogenetics.} For
+complex karyotypes it predicts 42.5\% survival at two years where 26.9\% is observed a
+15.6-point overestimation.
+
+Three elements establish this as a genuine model bias rather than noise:
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{The gradient is monotonic.} The worse the prognosis, the larger the
+        overestimation. Favourable and majority groups are well calibrated
+        ($|\text{gap}| < 0.02$).
+  \item \textbf{It reproduces out of sample.} Held-out gaps ($+0.148$, $+0.102$) match training
+        gaps ($+0.156$, $+0.099$) almost exactly, excluding overfitting.
+  \item \textbf{It is not a censoring artefact.} \var{Monosomy 7} has only 14.7\% censoring in
+        the held-out split, so its Kaplan--Meier reference is reliable.
+\end{enumerate}
+
+\paragraph{Mechanism.}
+This is \textbf{regression to the mean}, an expected property of random forests: each
+prediction aggregates leaf averages, pulling extreme cases toward the centre of the outcome
+distribution. The affected groups are simultaneously the most severe and the least represented
+(79 and 164 patients), which amplifies the effect. The bias therefore \emph{originates in the
+data} (under-representation of severe cases) and \emph{manifests in the model} (shrinkage of
+their predicted risk).
+
+\begin{keybox}
+\textbf{Clinical implication.} The error runs in the most harmful direction: announcing a more
+favourable prognosis than reality to the highest-risk patients. It is entirely invisible to the
+C-index. \var{Complex} retains a respectable discrimination of 0.747 and surfaces only
+through calibration analysis. This validates the two-pronged methodology.
+\end{keybox}
+
+% =============================================================================
+\section{Bias inventory}
+% =============================================================================
+
+\subsection{Confirmed}
+
+\begin{longtable}{@{}p{4.2cm} p{6.5cm} p{3.8cm}@{}}
+\toprule
+\textbf{Bias} & \textbf{Evidence} & \textbf{Origin} \\
+\midrule
+\endhead
+Calibration / regression to the mean & $+0.156$ (Complex), $+0.099$ (Monosomy 7), reproduced
+out-of-sample & Model, driven by data imbalance \\
+\addlinespace
+Representation & 786 $\rightarrow$ 6 patients per centre; 1{,}780 $\rightarrow$ 79 per
+cytogenetic class & Data \\
+\addlinespace
+Censoring & 8.4\% $\rightarrow$ 90.2\% across centres, correlated with apparent survival &
+Data / study design \\
+\addlinespace
+Documentation & 285 patients with \var{CYTO\_CLASS = Missing}, 256 without molecular testing &
+Data collection \\
+\addlinespace
+Contextual leakage (suspected) & \var{DEPTH\_MEAN} / \var{DEPTH\_MAX} carry prognostic signal
+despite being purely technical & Feature engineering \\
+\bottomrule
+\end{longtable}
+
+\subsection{Investigated and ruled out}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}p{4.5cm} p{9cm}@{}}
+\toprule
+\textbf{Bias} & \textbf{Evidence} \\
+\midrule
+Institutional & \var{CENTER} permutation costs 0.0051 C-index; SHAP contribution $\approx 0$ \\
+Discrimination & All subgroup confidence intervals overlap \\
+Access-to-care inequity & \var{HAS\_MOL\_DATA}: 0.798 vs 0.810, overlapping intervals \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Not assessable}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}p{4.5cm} p{9cm}@{}}
+\toprule
+\textbf{Bias} & \textbf{Reason} \\
+\midrule
+Demographic & Neither age nor sex present in the dataset \\
+Selection & No information on excluded patients or referral patterns \\
+Survivorship & Patients dying before karyotyping are absent by construction \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% =============================================================================
+\section{Discussion}
+% =============================================================================
+
+The analysis produces one strong negative result and one strong positive result, and the
+contrast between them is instructive.
+
+\paragraph{The negative result is reassuring.}
+Despite \var{CENTER} being an explicit model feature (a configuration that would normally
+raise concern) the model does not exploit it. Two independent methods (permutation testing
+at the population level, SHAP at the individual level) converge on the same conclusion. The
+model bases its prognosis on biology, not on institutional context.
+
+\paragraph{The positive result is actionable.}
+The calibration bias is systematic, reproducible, and runs in the clinically harmful direction.
+Critically, it would have gone entirely unnoticed had the audit been limited to discrimination
+metrics: \var{Complex} shows a C-index of 0.747, which any standard evaluation would deem
+acceptable.
+
+This illustrates the central methodological point of the report: \textbf{for survival models,
+ranking quality and absolute risk accuracy are separate properties, and fairness must be
+assessed on both.} A model can rank a subgroup perfectly while being systematically wrong about
+how long its patients will actually live.
+
+The mechanism also clarifies where remediation should occur. Since the bias stems from
+under-representation of severe cases combined with ensemble averaging, changing algorithm is
+unlikely to resolve it. Post-hoc recalibration or reweighting of severe cases are the
+appropriate directions.
+
+% =============================================================================
+\section{Limitations}
+% =============================================================================
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Metrics are computed on training data.} Subgroup C-indices around 0.80
+        correspond to the training C-index (0.8105), not to the held-out platform score
+        (0.752). Absolute values are optimistic; only \emph{relative comparisons between
+        subgroups} are interpretable.
+  \item \textbf{The held-out split is imperfect.} It is drawn from patients the model saw
+        during training. A cross-validated calibration, measured on each validation fold, would
+        be required for publication-grade evidence.
+  \item \textbf{Small subgroups.} 12 of 23 centres fall below the interpretability threshold.
+        Held-out \var{Complex} and \var{Monosomy 7} rest on 22 and 34 patients respectively 
+        (indicative results requiring confirmation on an external cohort).
+  \item \textbf{No demographic variables}, so the most commonly examined fairness axis is
+        inaccessible.
+  \item \textbf{A single horizon} (2 years) was used for calibration. Bias may behave
+        differently at 1 or 5 years.
+  \item \textbf{Out-of-distribution inputs in the application.} The Streamlit interface offers
+        cytogenetic classes absent from training (\var{inv(16)}, \var{t(8;21)}) or represented
+        by a single patient (\var{APL t(15;17)}), which would produce predictions with no
+        empirical basis. This is a deployment bias identified during the audit and requiring
+        correction before any use.
+\end{itemize}
+
+\end{document}
