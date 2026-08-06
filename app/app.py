@@ -1,5 +1,5 @@
 """
-app.py — Leukemia Survival Predictor (bilingual EN / FR)
+app.py, Leukemia Survival Predictor (bilingual EN / FR)
 Usage: streamlit run app/app.py
 
 """
@@ -14,13 +14,22 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import streamlit as st
 import joblib
+import shap
 
+from matplotlib.patches import Patch
 from src.config import CLINICAL_RSF, FULL_RSF
 from src.preprocessing import log1p_cols, log1p_full
 
 from i18n import (
-    t as _t, LANGUAGES, CYTO_DESC, CYTO_DISPLAY, RANGE_HINTS,
-    FEATURE_LABELS_I18N, MOL_PROFILES_I18N, FAMILIES, BURDEN_LABELS,
+    t as _t,
+    LANGUAGES,
+    CYTO_DESC,
+    CYTO_DISPLAY,
+    RANGE_HINTS,
+    FEATURE_LABELS_I18N,
+    MOL_PROFILES_I18N,
+    FAMILIES,
+    BURDEN_LABELS,
 )
 
 st.set_page_config(
@@ -29,9 +38,8 @@ st.set_page_config(
     layout="wide",
 )
 
-# ---------------------------------------------------------------------------
+
 # Language selector — rendered at the top of the sidebar
-# ---------------------------------------------------------------------------
 LANG = st.sidebar.selectbox(
     "🌐 Language / Langue",
     options=list(LANGUAGES.keys()),
@@ -47,7 +55,7 @@ def T(key, **kw):
     return _t(key, LANG, **kw)
 
 
-# Constants — clinical
+# Constants: clinical
 
 CYTO_CLASSES = [
     "APL t(15;17)",
@@ -77,33 +85,86 @@ CENTER_VALUE = "KI"  # placeholder center, consistent with training data encodin
 # Constants — molecular
 
 MOLECULAR_GENE_COLS = [
-    "TET2", "ASXL1", "SF3B1", "DNMT3A", "RUNX1", "SRSF2", "TP53", "STAG2",
-    "U2AF1", "EZH2", "CBL", "BCOR", "NRAS", "ZRSR2", "DDX41", "IDH2", "CUX1",
-    "NF1", "PHF6", "KRAS", "SETBP1", "JAK2", "MLL", "PTPN11", "CEBPA", "IDH1",
-    "ETV6", "ETNK1", "MPL", "SH2B3",
+    "TET2",
+    "ASXL1",
+    "SF3B1",
+    "DNMT3A",
+    "RUNX1",
+    "SRSF2",
+    "TP53",
+    "STAG2",
+    "U2AF1",
+    "EZH2",
+    "CBL",
+    "BCOR",
+    "NRAS",
+    "ZRSR2",
+    "DDX41",
+    "IDH2",
+    "CUX1",
+    "NF1",
+    "PHF6",
+    "KRAS",
+    "SETBP1",
+    "JAK2",
+    "MLL",
+    "PTPN11",
+    "CEBPA",
+    "IDH1",
+    "ETV6",
+    "ETNK1",
+    "MPL",
+    "SH2B3",
 ]
 
 MOLECULAR_EFFECT_COLS = [
-    "2KB_upstream_variant", "ITD", "OTHER_EFFECT", "PTD", "frameshift_variant",
-    "inframe_codon_gain", "inframe_codon_loss", "initiator_codon_change",
-    "non_synonymous_codon", "splice_site_variant", "stop_gained",
+    "2KB_upstream_variant",
+    "ITD",
+    "OTHER_EFFECT",
+    "PTD",
+    "frameshift_variant",
+    "inframe_codon_gain",
+    "inframe_codon_loss",
+    "initiator_codon_change",
+    "non_synonymous_codon",
+    "splice_site_variant",
+    "stop_gained",
 ]
 
 # Illustrative synthetic profiles, NOT real patient data.
 MOLECULAR_PROFILES = {
     "none": {
-        "genes": [], "effects": [], "n_mut": 0, "n_genes": 0, "vaf_mean": 0.0,
-        "vaf_max": 0.0, "depth_mean": 0.0, "depth_max": 0.0, "has_mol_data": 0,
+        "genes": [],
+        "effects": [],
+        "n_mut": 0,
+        "n_genes": 0,
+        "vaf_mean": 0.0,
+        "vaf_max": 0.0,
+        "depth_mean": 0.0,
+        "depth_max": 0.0,
+        "has_mol_data": 0,
     },
     "favorable": {
-        "genes": ["CEBPA"], "effects": ["frameshift_variant"], "n_mut": 1,
-        "n_genes": 1, "vaf_mean": 0.42, "vaf_max": 0.42, "depth_mean": 280.0,
-        "depth_max": 280.0, "has_mol_data": 1,
+        "genes": ["CEBPA"],
+        "effects": ["frameshift_variant"],
+        "n_mut": 1,
+        "n_genes": 1,
+        "vaf_mean": 0.42,
+        "vaf_max": 0.42,
+        "depth_mean": 280.0,
+        "depth_max": 280.0,
+        "has_mol_data": 1,
     },
     "adverse": {
-        "genes": ["TP53"], "effects": ["non_synonymous_codon"], "n_mut": 2,
-        "n_genes": 1, "vaf_mean": 0.58, "vaf_max": 0.65, "depth_mean": 240.0,
-        "depth_max": 260.0, "has_mol_data": 1,
+        "genes": ["TP53"],
+        "effects": ["non_synonymous_codon"],
+        "n_mut": 2,
+        "n_genes": 1,
+        "vaf_mean": 0.58,
+        "vaf_max": 0.65,
+        "depth_mean": 240.0,
+        "depth_max": 260.0,
+        "has_mol_data": 1,
     },
 }
 
@@ -158,9 +219,8 @@ except FileNotFoundError as e:
     load_error = load_error or str(e)
 
 
-# -------------------------------------------------------------------------
 # SHAP explainability (memory-safe: on demand + cached)
-# -------------------------------------------------------------------------
+
 SHAP_BG_PATH = os.path.join(
     os.path.dirname(__file__), "..", "models", "full", "shap_background.parquet"
 )
@@ -178,8 +238,15 @@ def feature_family(name):
         return _FAM["center"]
     if name in ("BM_BLAST", "WBC", "ANC", "MONOCYTES", "HB", "PLT"):
         return _FAM["hema"]
-    if name in ("N_MUT", "N_GENES", "VAF_MEAN", "VAF_MAX",
-                "DEPTH_MEAN", "DEPTH_MAX", "HAS_MOL_DATA"):
+    if name in (
+        "N_MUT",
+        "N_GENES",
+        "VAF_MEAN",
+        "VAF_MAX",
+        "DEPTH_MEAN",
+        "DEPTH_MAX",
+        "HAS_MOL_DATA",
+    ):
         return _FAM["burden"]
     if name.startswith("GENE_"):
         return _FAM["genes"]
@@ -207,21 +274,28 @@ def _surv_at_t_batched(model, X_raw, t_star, batch=200):
     """S(t*) in small batches, freeing memory in between."""
     out = []
     for i in range(0, len(X_raw), batch):
-        fns = model.predict_survival_function(X_raw.iloc[i:i + batch])
+        fns = model.predict_survival_function(X_raw.iloc[i : i + batch])
         out.append(np.array([float(fn(t_star)) for fn in fns]))
         del fns
         gc.collect()
     return np.concatenate(out)
 
 
-CLINICAL_COLS = ["BM_BLAST", "WBC", "ANC", "MONOCYTES", "HB", "PLT",
-                 "CYTO_CLASS", "CENTER"]
+CLINICAL_COLS = [
+    "BM_BLAST",
+    "WBC",
+    "ANC",
+    "MONOCYTES",
+    "HB",
+    "PLT",
+    "CYTO_CLASS",
+    "CENTER",
+]
 
 
 @st.cache_data(show_spinner=False)
 def compute_patient_shap(row_items, t_star, background_n, nsamples, model_kind="full"):
     """SHAP for one patient at horizon t*, on the same model shown above."""
-    import shap
 
     bg_full = load_shap_background()
 
@@ -253,8 +327,13 @@ def compute_patient_shap(row_items, t_star, background_n, nsamples, model_kind="
     base = float(explainer.expected_value)
     s_patient = float(_surv_at_t_batched(model, patient, t_star)[0])
     gc.collect()
-    return {"shap": sv, "cols": cols, "base": base,
-            "s_patient": s_patient, "t_star": t_star}
+    return {
+        "shap": sv,
+        "cols": cols,
+        "base": base,
+        "s_patient": s_patient,
+        "t_star": t_star,
+    }
 
 
 # Feature construction
@@ -262,8 +341,13 @@ def compute_patient_shap(row_items, t_star, background_n, nsamples, model_kind="
 
 def build_clinical_row(bm_blast, wbc, anc, monocytes, hb, plt_count, cyto_class):
     return {
-        "BM_BLAST": bm_blast, "WBC": wbc, "ANC": anc, "MONOCYTES": monocytes,
-        "HB": hb, "PLT": plt_count, "CYTO_CLASS": cyto_class,
+        "BM_BLAST": bm_blast,
+        "WBC": wbc,
+        "ANC": anc,
+        "MONOCYTES": monocytes,
+        "HB": hb,
+        "PLT": plt_count,
+        "CYTO_CLASS": cyto_class,
         "CENTER": CENTER_VALUE,
     }
 
@@ -430,15 +514,18 @@ with col1:
     ]:
         lo, hi = NORMAL_RANGES[feat]
         status = (
-            T("st_normal") if lo <= val <= hi
+            T("st_normal")
+            if lo <= val <= hi
             else (T("st_high") if val > hi else T("st_low"))
         )
-        rows.append({
-            T("col_marker"): FEATURE_LABELS[feat],
-            T("col_value"): val,
-            T("col_unit"): unit,
-            T("col_status"): status,
-        })
+        rows.append(
+            {
+                T("col_marker"): FEATURE_LABELS[feat],
+                T("col_value"): val,
+                T("col_unit"): unit,
+                T("col_status"): status,
+            }
+        )
     st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
 
     st.caption(T("sum_mol_scenario", label=mol_label(mol_choice)))
@@ -498,31 +585,58 @@ if st.session_state.get("show_prediction", False):
 
     mc1, mc2, mc3 = st.columns(3)
     if show_comparison:
-        mc1.metric(T("m_1y"), f"{t1_full:.1%}",
-                   delta=T("delta_vs_clin", v=(t1_full - t1_clin) * 100))
-        mc2.metric(T("m_3y"), f"{t3_full:.1%}",
-                   delta=T("delta_vs_clin", v=(t3_full - t3_clin) * 100))
-        mc3.metric(T("m_median"),
-                   T("m_years", v=med_full) if med_full else T("m_beyond"))
+        mc1.metric(
+            T("m_1y"),
+            f"{t1_full:.1%}",
+            delta=T("delta_vs_clin", v=(t1_full - t1_clin) * 100),
+        )
+        mc2.metric(
+            T("m_3y"),
+            f"{t3_full:.1%}",
+            delta=T("delta_vs_clin", v=(t3_full - t3_clin) * 100),
+        )
+        mc3.metric(
+            T("m_median"), T("m_years", v=med_full) if med_full else T("m_beyond")
+        )
     else:
         mc1.metric(T("m_1y"), f"{t1_clin:.1%}")
         mc2.metric(T("m_3y"), f"{t3_clin:.1%}")
-        mc3.metric(T("m_median"),
-                   T("m_years", v=med_clin) if med_clin else T("m_beyond"))
+        mc3.metric(
+            T("m_median"), T("m_years", v=med_clin) if med_clin else T("m_beyond")
+        )
 
     # Survival curve
     fig, ax = plt.subplots(figsize=(9, 4.5))
 
     if show_comparison:
-        ax.step(t_clin, p_clin, where="post", color="#94a3b8", lw=2, ls="--",
-                label=T("curve_clin", c=CINDEX_CLINICAL))
-        ax.step(t_full, p_full, where="post", color="#2563eb", lw=2.5,
-                label=T("curve_full", c=CINDEX_FULL))
+        ax.step(
+            t_clin,
+            p_clin,
+            where="post",
+            color="#94a3b8",
+            lw=2,
+            ls="--",
+            label=T("curve_clin", c=CINDEX_CLINICAL),
+        )
+        ax.step(
+            t_full,
+            p_full,
+            where="post",
+            color="#2563eb",
+            lw=2.5,
+            label=T("curve_full", c=CINDEX_FULL),
+        )
         ax.fill_between(t_full, p_full, alpha=0.08, color="#2563eb", step="post")
         title_suffix = mol_label(mol_choice)
     else:
-        ax.step(t_clin, p_clin, where="post", color="#2563eb", lw=2.5,
-                label=T("curve_clin", c=CINDEX_CLINICAL))
+        ax.step(
+            t_clin,
+            p_clin,
+            where="post",
+            color="#2563eb",
+            lw=2.5,
+            label=T("curve_clin", c=CINDEX_CLINICAL),
+        )
         ax.fill_between(t_clin, p_clin, alpha=0.08, color="#2563eb", step="post")
         title_suffix = T("curve_nomol")
 
@@ -560,24 +674,31 @@ if st.session_state.get("show_prediction", False):
         surv_level = T("lvl_poor")
 
     median_text = (
-        T("interp_median", v=ref_median) if ref_median
-        else T("interp_median_beyond")
+        T("interp_median", v=ref_median) if ref_median else T("interp_median_beyond")
     )
 
     if show_comparison:
         molecular_sentence = T(
-            "interp_mol_cmp", cyto=cyto_shown, badge=risk_badge,
-            label=mol_label(mol_choice), delta=(t1_full - t1_clin) * 100,
-            cf=CINDEX_FULL, cc=CINDEX_CLINICAL,
+            "interp_mol_cmp",
+            cyto=cyto_shown,
+            badge=risk_badge,
+            label=mol_label(mol_choice),
+            delta=(t1_full - t1_clin) * 100,
+            cf=CINDEX_FULL,
+            cc=CINDEX_CLINICAL,
         )
     else:
         molecular_sentence = T(
-            "interp_mol_clin", cyto=cyto_shown, badge=risk_badge,
-            cf=CINDEX_FULL, cc=CINDEX_CLINICAL,
+            "interp_mol_clin",
+            cyto=cyto_shown,
+            badge=risk_badge,
+            cf=CINDEX_FULL,
+            cc=CINDEX_CLINICAL,
         )
 
-    main_sentence = T("interp_main", level=surv_level, t1=ref_t1, t3=ref_t3,
-                      median=median_text)
+    main_sentence = T(
+        "interp_main", level=surv_level, t1=ref_t1, t3=ref_t3, median=median_text
+    )
 
     st.markdown(
         f"""
@@ -604,11 +725,13 @@ if st.session_state.get("show_prediction", False):
 
     # Cytogenetics is the dominant prognostic factor (ELN 2022): shown first,
     # otherwise the table omits the model's most decisive variable.
-    marker_rows = [{
-        T("col_marker"): T("mk_cyto_row"),
-        T("mk_col_effect"): T("mk_cyto_effect"),
-        T("mk_col_patient"): f"{risk_badge} — {cyto_shown}",
-    }]
+    marker_rows = [
+        {
+            T("col_marker"): T("mk_cyto_row"),
+            T("mk_col_effect"): T("mk_cyto_effect"),
+            T("mk_col_patient"): f"{risk_badge} — {cyto_shown}",
+        }
+    ]
     for feat, val, unit, direction, meaning in marker_data:
         lo, hi = NORMAL_RANGES[feat]
         effect_icon = "🔴" if direction == "risk" else "🟢"
@@ -619,29 +742,36 @@ if st.session_state.get("show_prediction", False):
         else:
             patient_status = T("mk_normal", v=val, u=unit)
 
-        marker_rows.append({
-            T("col_marker"): FEATURE_LABELS[feat],
-            T("mk_col_effect"): f"{effect_icon}  {meaning}",
-            T("mk_col_patient"): patient_status,
-        })
+        marker_rows.append(
+            {
+                T("col_marker"): FEATURE_LABELS[feat],
+                T("mk_col_effect"): f"{effect_icon}  {meaning}",
+                T("mk_col_patient"): patient_status,
+            }
+        )
 
     st.dataframe(pd.DataFrame(marker_rows), hide_index=True, use_container_width=True)
     st.caption(T("mk_legend"))
 
     if show_comparison and MOLECULAR_PROFILES[mol_choice]["genes"]:
-        st.caption(T(
-            "mk_mol",
-            genes=", ".join(MOLECULAR_PROFILES[mol_choice]["genes"]),
-            kind=T("kind_adverse") if mol_choice == "adverse" else T("kind_favourable"),
-        ))
+        st.caption(
+            T(
+                "mk_mol",
+                genes=", ".join(MOLECULAR_PROFILES[mol_choice]["genes"]),
+                kind=(
+                    T("kind_adverse")
+                    if mol_choice == "adverse"
+                    else T("kind_favourable")
+                ),
+            )
+        )
 
 else:
     st.info(T("idle"))
 
 
-# =========================================================================
-# Explainability — why does the model predict this? (SHAP)
-# =========================================================================
+# Explainability: why does the model predict this? (SHAP)
+
 st.divider()
 st.subheader(T("xai_title"))
 
@@ -684,8 +814,11 @@ if st.button(T("xai_button"), use_container_width=True):
     base, s_patient, t_star = r["base"], r["s_patient"], r["t_star"]
 
     m1, m2 = st.columns(2)
-    m1.metric(T("xai_m_pred", t=t_star), f"{s_patient:.1%}",
-              delta=T("xai_delta", v=(s_patient - base) * 100))
+    m1.metric(
+        T("xai_m_pred", t=t_star),
+        f"{s_patient:.1%}",
+        delta=T("xai_delta", v=(s_patient - base) * 100),
+    )
     m2.metric(T("xai_m_base"), f"{base:.1%}")
 
     if exp_grouped:
@@ -706,8 +839,11 @@ if st.button(T("xai_button"), use_container_width=True):
             val = full_row.get(col, None)
             if val is None:
                 return lab
-            if col.startswith("GENE_") or col.startswith("EFFECT_") \
-                    or col == "HAS_MOL_DATA":
+            if (
+                col.startswith("GENE_")
+                or col.startswith("EFFECT_")
+                or col == "HAS_MOL_DATA"
+            ):
                 yn = T("lab_yes") if float(val) >= 0.5 else T("lab_no")
                 return f"{lab}: {yn}"
             if isinstance(val, str):
@@ -723,14 +859,16 @@ if st.button(T("xai_button"), use_container_width=True):
     ax_s.spines[["top", "right"]].set_visible(False)
 
     # Real colour patches: emoji are not rendered by matplotlib's default font
-    from matplotlib.patches import Patch
     ax_s.legend(
         handles=[
             Patch(facecolor="#2a9d8f", label=T("xai_up")),
             Patch(facecolor="#e76f51", label=T("xai_down")),
         ],
-        loc="lower center", bbox_to_anchor=(0.5, 1.01), ncol=2,
-        frameon=False, fontsize=10,
+        loc="lower center",
+        bbox_to_anchor=(0.5, 1.01),
+        ncol=2,
+        frameon=False,
+        fontsize=10,
     )
     plt.tight_layout()
     st.pyplot(fig_s)
@@ -740,8 +878,12 @@ if st.button(T("xai_button"), use_container_width=True):
     if not exp_grouped:
         _shown = [cols[i] for i in order]
         _absent_gene = next(
-            (c for c in reversed(_shown)
-             if c.startswith("GENE_") and float(full_row.get(c, 0)) < 0.5), None
+            (
+                c
+                for c in reversed(_shown)
+                if c.startswith("GENE_") and float(full_row.get(c, 0)) < 0.5
+            ),
+            None,
         )
         if _absent_gene:
             _example = T("xai_read_gene", g=_absent_gene[5:])
