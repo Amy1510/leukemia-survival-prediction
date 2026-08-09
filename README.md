@@ -29,7 +29,7 @@ and researchers.
 | Model | CV C-index | Test platform |
 |---|---|---|
 | RSF, clinical only | 0.7162 | 0.65 |
-| **RSF — Clinical + Molecular** | **0.7393** | **0.7524** |
+| **RSF, Clinical + Molecular** | **0.7393** | **0.7524** |
 
 The **C-index** (concordance index) measures how well the model ranks patients by survival time:
 0.5 = random ranking, 1.0 = perfect ranking.
